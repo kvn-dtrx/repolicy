@@ -1,0 +1,11 @@
+name: Are Filenames Formatted
+
+on:
+  # pull_request:
+  #   paths:
+  #     - "*"
+  workflow_dispatch:
+
+jobs:
+  are-filenames-formatted:
+    uses: kvn-dtrx/git-automatisation/.github/workflows/are-filenames-formatted.yaml@main

@@ -1,0 +1,26 @@
+name: Are Filenames Formatted
+
+on:
+  workflow_call:
+    inputs:
+      paths:
+        required: false
+        type: string
+        default: "**/*"
+
+jobs:
+  are-filenames-formatted:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Run Core Task
+        env:
+          SCRIPT_URL: "https://raw.githubusercontent.com/kvn-dtrx/git-automatisation/main/src/hooks/pre-commit/filenames-formatted.bash"
+          INPUT_PATHS: ${{ inputs.paths }}
+        run: |
+          curl -fslL "${SCRIPT_URL}" -o tmp-script
+          chmod +x tmp-script
+          ./tmp-script "${INPUT_PATHS}"

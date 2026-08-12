@@ -2,11 +2,14 @@ project:
   id: df985854-83e2-4a78-8025-78ef8b9f436c
   name: Git Automatisation
   description: >-
-    A conglomerate of automation resources related to Git, including Git hooks and GitHub workflows
+    A library of native Git hook scripts and shared log helpers for reuse across repositories
   authors:
     - name: Kvn Dtrx
       mail: kvn.dtrx+git@protonmail.ch
-  license: null
+  license:
+    type: MIT
+    year: 2025
+    file: LICENSE.txt
 forges:
   github:
     url: https://github.com/kvn-dtrx/git-automatisation

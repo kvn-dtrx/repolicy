@@ -1,0 +1,10 @@
+name: Do Links Work
+
+on:
+  workflow_dispatch:
+
+jobs:
+  do-links-work:
+    permissions:
+      issues: write
+    uses: kvn-dtrx/git-automatisation/.github/workflows/do-links-work.yaml@main

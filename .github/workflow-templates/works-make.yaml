@@ -1,0 +1,10 @@
+name: Does make Work
+
+on:
+  workflow_dispatch:
+
+jobs:
+  does-make-work:
+    # permissions:
+    #   contents: write
+    uses: kvn-dtrx/git-automatisation/.github/workflows/does-make-work.yaml@main
