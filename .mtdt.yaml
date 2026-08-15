@@ -1,8 +1,8 @@
 project:
   id: df985854-83e2-4a78-8025-78ef8b9f436c
-  name: Git Automatisation
+  name: Repolicy
   description: >-
-    A library of native Git hook scripts and shared log helpers for reuse across repositories
+    Repository policies enforced consistently through Git hooks and CI
   authors:
     - name: Kvn Dtrx
       mail: kvn.dtrx+git@protonmail.ch
@@ -12,5 +12,5 @@ project:
     file: LICENSE.txt
 forges:
   github:
-    url: https://github.com/kvn-dtrx/git-automatisation
+    url: https://github.com/kvn-dtrx/repolicy
     visibility: public

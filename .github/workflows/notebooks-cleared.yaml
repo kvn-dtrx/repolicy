@@ -1,5 +1,4 @@
 name: Are Notebooks Cleared
-
 on:
   workflow_call:
     inputs:
@@ -9,31 +8,29 @@ on:
       head_sha:
         required: true
         type: string
-      paths:
-        required: false
-        type: string
-        default: "**/*.ipynb"
-
 jobs:
-  are-notebooks-cleared:
+  notebooks-cleared:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          fetch-tags: false
-
-      - name: Install Dependencies
+      - name: Checkout Repolicy
+        uses: actions/checkout@v4
+        with:
+          repository: kvn-dtrx/repolicy
+          path: .repolicy
+      - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Run Core Task
+      - name: Check Changed Notebooks
         env:
-          SCRIPT_URL: "https://raw.githubusercontent.com/kvn-dtrx/git-automatisation/main/src/ci/are-notebooks-cleared.bash"
           BASE_SHA: ${{ inputs.base_sha }}
           HEAD_SHA: ${{ inputs.head_sha }}
+        shell: bash
         run: |
-          curl -fslL "${SCRIPT_URL}" -o tmp-script
-          chmod +x tmp-script
-          ./tmp-script
+          paths=()
+          while IFS= read -r -d '' path; do paths+=("${path}"); done \
+            < <(git diff --name-only -z --diff-filter=ACM "${BASE_SHA}" "${HEAD_SHA}" -- '*.ipynb')
+          .repolicy/src/adapters/github-actions/run-rule \
+            notebooks-cleared.bash "${paths[@]}"

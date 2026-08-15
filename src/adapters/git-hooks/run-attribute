@@ -1,0 +1,125 @@
+#!/bin/bash
+
+# Dispatches staged paths according to a repository-local Git attribute.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+event="${1:?}"
+attribute="${2:?}"
+shift 2
+
+while [ "${#}" -gt 0 ] && [ "${1}" != "--" ]; do
+    shift
+done
+[ "${#}" -eq 0 ] || shift
+
+if [ "${event}" != "pre-commit" ]; then
+    log-error "Attribute dispatch is not supported for Git event '${event}'"
+    exit 1
+fi
+
+case "${attribute}" in
+    repolicy-check | repolicy-sanitise) ;;
+    *)
+        log-error "Unsupported Repolicy attribute: ${attribute}"
+        exit 1
+        ;;
+esac
+
+staged_paths=()
+while IFS= read -r -d '' path; do
+    staged_paths+=("${path}")
+done < <(git diff --cached --name-only -z --diff-filter=ACM)
+[ "${#staged_paths[@]}" -gt 0 ] || exit 0
+
+attribute_list="$(mktemp)"
+bucket_files=()
+check_dir=""
+cleanup() {
+    rm -f "${attribute_list}"
+    cleanup_index=0
+    while [ "${cleanup_index}" -lt "${#bucket_files[@]}" ]; do
+        rm -f "${bucket_files[${cleanup_index}]}"
+        cleanup_index=$((cleanup_index + 1))
+    done
+    [ -z "${check_dir}" ] || rm -rf "${check_dir}"
+}
+trap cleanup EXIT
+git check-attr -z "${attribute}" -- "${staged_paths[@]}" > "${attribute_list}"
+
+bucket_values=()
+while IFS= read -r -d '' path &&
+    IFS= read -r -d '' _name &&
+    IFS= read -r -d '' value; do
+    case "${value}" in
+        unspecified | unset | set) continue ;;
+    esac
+    case "${value}" in
+        *[!a-z0-9_-]* | '')
+            log-error "Invalid ${attribute} value '${value}' for ${path}"
+            exit 1
+            ;;
+    esac
+
+    bucket_index=-1
+    index=0
+    while [ "${index}" -lt "${#bucket_values[@]}" ]; do
+        if [ "${bucket_values[${index}]}" = "${value}" ]; then
+            bucket_index="${index}"
+            break
+        fi
+        index=$((index + 1))
+    done
+    if [ "${bucket_index}" -lt 0 ]; then
+        bucket_values+=("${value}")
+        bucket_files+=("$(mktemp)")
+        bucket_index=$((${#bucket_values[@]} - 1))
+    fi
+    printf '%s\0' "${path}" >> "${bucket_files[${bucket_index}]}"
+done < "${attribute_list}"
+
+changed=0
+index=0
+while [ "${index}" -lt "${#bucket_values[@]}" ]; do
+    value="${bucket_values[${index}]}"
+    bucket="${bucket_files[${index}]}"
+    status=0
+    case "${attribute}" in
+        repolicy-sanitise)
+            command_name="sanitise-${value}"
+            if ! command -v "${command_name}" > /dev/null 2>&1; then
+                log-error "Missing attributed sanitiser: ${command_name}"
+                exit 1
+            fi
+            "${command_name}" --stdin0 < "${bucket}" || status=$?
+            ;;
+        repolicy-check)
+            rule_path="${REPOLICY_LIBEXEC:?}/rules/${value}.bash"
+            if [ ! -x "${rule_path}" ]; then
+                log-error "Missing attributed Repolicy rule: ${value}.bash"
+                exit 1
+            fi
+            [ -n "${check_dir}" ] || check_dir="$(mktemp -d)"
+            paths=()
+            path_index=0
+            while IFS= read -r -d '' path; do
+                check_path="${check_dir}/${path_index}-$(basename -- "${path}")"
+                git cat-file blob ":${path}" > "${check_path}"
+                paths+=("${check_path}")
+                path_index=$((path_index + 1))
+            done < "${bucket}"
+            "${rule_path}" "${paths[@]}" || status=$?
+            ;;
+    esac
+
+    case "${status}" in
+        0) ;;
+        3) changed=1 ;;
+        *) exit "${status}" ;;
+    esac
+    index=$((index + 1))
+done
+
+[ "${changed}" -eq 0 ] || exit 3

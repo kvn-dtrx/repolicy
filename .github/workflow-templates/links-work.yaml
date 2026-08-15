@@ -1,0 +1,6 @@
+name: Do Links Work
+on:
+  workflow_dispatch:
+jobs:
+  links-work:
+    uses: kvn-dtrx/repolicy/.github/workflows/links-work.yaml@main

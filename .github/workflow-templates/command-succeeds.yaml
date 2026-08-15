@@ -1,0 +1,8 @@
+name: Does Make Succeed
+on:
+  workflow_dispatch:
+jobs:
+  make-succeeds:
+    uses: kvn-dtrx/repolicy/.github/workflows/command-succeeds.yaml@main
+    with:
+      command: make

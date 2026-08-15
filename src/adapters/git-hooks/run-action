@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Supplies Git-hook context to explicit Repolicy actions.
+
+set -o errexit
+set -o pipefail
+
+event="${1:?}"
+action="${2:?}"
+shift 2
+
+while [ "${#}" -gt 0 ] && [ "${1}" != "--" ]; do
+    shift
+done
+[ "${#}" -eq 0 ] || shift
+event_args=("${@}")
+
+action_path="${REPOLICY_LIBEXEC:?}/actions/${action}"
+if [ ! -x "${action_path}" ]; then
+    log-error "Missing Repolicy action: ${action}"
+    exit 1
+fi
+
+case "${event}:${action}" in
+    commit-msg:format-commit-message.sh)
+        "${action_path}" "${event_args[0]:?commit-msg needs a message file}"
+        ;;
+    *)
+        log-error "Action '${action}' is not mapped for Git event '${event}'"
+        exit 1
+        ;;
+esac

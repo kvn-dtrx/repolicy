@@ -1,26 +1,29 @@
 name: Are Filenames Formatted
-
 on:
   workflow_call:
     inputs:
       paths:
         required: false
         type: string
-        default: "**/*"
-
+        default: "."
 jobs:
-  are-filenames-formatted:
+  filenames-formatted:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Run Core Task
+        uses: actions/checkout@v4
+      - name: Checkout Repolicy
+        uses: actions/checkout@v4
+        with:
+          repository: kvn-dtrx/repolicy
+          path: .repolicy
+      - name: Check Tracked Filenames
         env:
-          SCRIPT_URL: "https://raw.githubusercontent.com/kvn-dtrx/git-automatisation/main/src/hooks/pre-commit/filenames-formatted.bash"
           INPUT_PATHS: ${{ inputs.paths }}
+        shell: bash
         run: |
-          curl -fslL "${SCRIPT_URL}" -o tmp-script
-          chmod +x tmp-script
-          ./tmp-script "${INPUT_PATHS}"
+          paths=()
+          while IFS= read -r -d '' path; do paths+=("${path}"); done \
+            < <(git ls-files -z -- "${INPUT_PATHS}")
+          .repolicy/src/adapters/github-actions/run-rule \
+            filenames-formatted.bash "${paths[@]}"

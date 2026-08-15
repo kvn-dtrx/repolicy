@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# Supplies Git-hook context to context-independent Repolicy rules.
+
+set -o errexit
+set -o pipefail
+
+event="${1:?}"
+rule="${2:?}"
+shift 2
+
+row_args=()
+while [ "${#}" -gt 0 ] && [ "${1}" != "--" ]; do
+    row_args+=("${1}")
+    shift
+done
+[ "${#}" -eq 0 ] || shift
+event_args=("${@}")
+
+runtime_root="${REPOLICY_LIBEXEC:?}"
+rule_path="${runtime_root}/rules/${rule}"
+if [ ! -x "${rule_path}" ]; then
+    log-error "Missing Repolicy rule: ${rule}"
+    exit 1
+fi
+
+staged_paths() {
+    git diff --cached --name-only -z --diff-filter=ACM
+}
+
+case "${event}:${rule}" in
+    pre-commit:filenames-formatted.bash | pre-commit:notebooks-cleared.bash | pre-commit:shellcheck-clean.bash)
+        paths=()
+        while IFS= read -r -d '' path; do
+            paths+=("${path}")
+        done < <(staged_paths)
+        "${rule_path}" "${row_args[@]}" "${paths[@]}"
+        ;;
+    pre-commit:contains-ignored-files.sh)
+        ignored=()
+        while IFS= read -r -d '' path; do
+            if git check-ignore --no-index --quiet -- "${path}"; then
+                ignored+=("${path}")
+            fi
+        done < <(staged_paths)
+        "${rule_path}" "${row_args[@]}" "${ignored[@]}"
+        ;;
+    pre-commit:branch-name-valid.bash)
+        "${rule_path}" "${row_args[@]}" "$(git branch --show-current)"
+        ;;
+    commit-msg:commit-message-valid.sh)
+        message_file="${event_args[0]:?commit-msg needs a message file}"
+        "${rule_path}" "${row_args[@]}" "$(head -n 1 "${message_file}")"
+        ;;
+    pre-push:pushes-to-protected-branch.sh)
+        "${rule_path}" "${row_args[@]}" "$(git branch --show-current)"
+        ;;
+    *)
+        log-error "Rule '${rule}' is not mapped for Git event '${event}'"
+        exit 1
+        ;;
+esac

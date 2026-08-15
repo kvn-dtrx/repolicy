@@ -1,11 +1,9 @@
 name: Is Branch Name Valid
-
 on:
   # pull_request:
   #   paths:
   #     - "*.*"
   workflow_dispatch:
-
 jobs:
   is-branch-name-valid:
-    uses: kvn-dtrx/git-automatisation/.github/workflows/is-branch-name-valid.yaml@main
+    uses: kvn-dtrx/repolicy/.github/workflows/branch-name-valid.yaml@main

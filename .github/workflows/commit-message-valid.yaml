@@ -1,23 +1,34 @@
-name: Is Commit Message Valid
-
+name: Are Commit Messages Valid
 on:
   workflow_call:
-  pull_request:
-    types:
-      - opened
-      - synchronize
-
+    inputs:
+      base_sha:
+        required: true
+        type: string
+      head_sha:
+        required: true
+        type: string
 jobs:
-  is-commit-message-valid:
+  commit-messages-valid:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Run Core Task
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Checkout Repolicy
+        uses: actions/checkout@v4
+        with:
+          repository: kvn-dtrx/repolicy
+          path: .repolicy
+      - name: Check Commit Messages
         env:
-          SCRIPT_URL: "https://raw.githubusercontent.com/kvn-dtrx/git-automatisation/main/src/hooks/commit-msg/commit-message-valid.sh"
+          BASE_SHA: ${{ inputs.base_sha }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+        shell: bash
         run: |
-          curl -fslL "${SCRIPT_URL}" -o tmp-script
-          chmod +x tmp-script
-          ./tmp-script
+          messages=()
+          while IFS= read -r -d '' message; do messages+=("${message}"); done \
+            < <(git log --format='%s%x00' "${BASE_SHA}..${HEAD_SHA}")
+          .repolicy/src/adapters/github-actions/run-rule \
+            commit-message-valid.sh "${messages[@]}"

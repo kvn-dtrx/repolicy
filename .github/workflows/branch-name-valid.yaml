@@ -1,23 +1,22 @@
 name: Is Branch Name Valid
-
 on:
   workflow_call:
-  # pull_request:
-  #   types:
-  #     - opened
-  #     - synchronize
-
+    inputs:
+      branch:
+        required: false
+        type: string
+  pull_request:
+    types: [opened, synchronize, reopened]
 jobs:
-  is-branch-name-valid:
+  branch-name-valid:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Run Core Task
+      - name: Checkout Repolicy
+        uses: actions/checkout@v4
+        with:
+          repository: kvn-dtrx/repolicy
+          path: .repolicy
+      - name: Check Branch Name
         env:
-          SCRIPT_URL: "https://raw.githubusercontent.com/kvn-dtrx/git-automatisation/main/src/hooks/pre-commit/branch-name-valid.bash"
-        run: |
-          curl -fslL "${SCRIPT_URL}" -o tmp-script
-          chmod +x tmp-script
-          ./tmp-script
+          BRANCH: ${{ inputs.branch || github.head_ref }}
+        run: .repolicy/src/adapters/github-actions/run-rule branch-name-valid.bash "${BRANCH}"

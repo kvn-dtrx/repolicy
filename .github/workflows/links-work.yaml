@@ -1,0 +1,19 @@
+name: Do Links Work
+on:
+  workflow_call:
+    inputs:
+      args:
+        required: false
+        type: string
+        default: '--verbose "**/*.md" "**/*.tex" "**/*.txt"'
+jobs:
+  links-work:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Check Links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: ${{ inputs.args }}
+          fail: true

@@ -1,0 +1,18 @@
+#!/bin/sh
+
+# Entry point installed as core.hooksPath/pre-push.
+
+set -eu
+
+hook_type="$(basename "$0")"
+install_root="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
+policy_root="$(git config --path --get repolicy.policyPath 2>/dev/null || true)"
+policy_root="${policy_root:-${HOME}/.config/repolicy}"
+
+git_dir="$(git rev-parse --git-dir 2>/dev/null || true)"
+project_hook="${git_dir:+${git_dir}/hooks/${hook_type}}"
+if [ -n "${project_hook}" ] && [ -x "${project_hook}" ]; then
+    exec "${project_hook}" "$@"
+fi
+
+exec "${install_root}/run-repolicy-catalog" "${hook_type}" "${policy_root}/${hook_type}.tsv" "$@"

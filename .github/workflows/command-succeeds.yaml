@@ -1,0 +1,21 @@
+name: Does Command Succeed
+on:
+  workflow_call:
+    inputs:
+      command:
+        required: true
+        type: string
+      runs_on:
+        required: false
+        type: string
+        default: ubuntu-latest
+jobs:
+  command-succeeds:
+    runs-on: ${{ inputs.runs_on }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Run Command
+        env:
+          REPOLICY_COMMAND: ${{ inputs.command }}
+        run: bash -o pipefail -c "${REPOLICY_COMMAND}"
