@@ -12,6 +12,7 @@
 # ---
 
 TYPES=(
+    "init"
     "feat"
     "fix"
     "chore"
@@ -20,6 +21,7 @@ TYPES=(
     "style"
     "test"
     "wip"
+    "final"
     # "perf"
     # "ci"
     # "build"
