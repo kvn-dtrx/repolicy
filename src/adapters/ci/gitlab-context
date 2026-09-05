@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Presents GitLab CI variables through Repolicy's neutral CI vocabulary.
+
+set -o errexit
+set -o pipefail
+
+case "${1:?usage: gitlab-context <event|branch|base-sha|head-sha>}" in
+    event)
+        case "${REPOLICY_EVENT:-${CI_PIPELINE_SOURCE:-}}" in
+            merge_request_event) printf '%s\n' merge-request ;;
+            *) printf '%s\n' "${REPOLICY_EVENT:-${CI_PIPELINE_SOURCE:-unknown}}" ;;
+        esac
+        ;;
+    branch)
+        printf '%s\n' "${REPOLICY_BRANCH:-${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-${CI_COMMIT_REF_NAME:-}}}"
+        ;;
+    base-sha)
+        printf '%s\n' "${REPOLICY_BASE_SHA:-${CI_MERGE_REQUEST_DIFF_BASE_SHA:-${CI_COMMIT_BEFORE_SHA:-}}}"
+        ;;
+    head-sha)
+        printf '%s\n' "${REPOLICY_HEAD_SHA:-${CI_COMMIT_SHA:-HEAD}}"
+        ;;
+    *)
+        printf 'Unknown GitLab CI context field: %s\n' "${1}" >&2
+        exit 1
+        ;;
+esac

@@ -26,10 +26,13 @@ repolicy/
 │   │   │   ├── entry/               # core.hooksPath entry points
 │   │   │   ├── run-rule
 │   │   │   └── run-action
-│   │   └── github-actions/
-│   │       └── run-rule
+│   │   ├── ci/                       # forge-neutral CI runner and contexts
+│   │   └── github-actions/           # compatibility entry points
 │   └── wire/libexec/                # catalog runner and log helpers
-├── .github/workflows/               # reusable CI adapters
+├── config/ci.tsv                     # default forge-neutral CI policy
+├── .github/workflows/               # reusable GitHub workflow
+├── templates/repolicy.yml           # reusable GitLab CI component
+├── .gitlab-ci.yml                    # exercises the component on GitLab
 ├── .github/workflow-templates/      # small caller examples
 ├── config/wire.ini
 └── Makefile
@@ -77,7 +80,8 @@ Policy consists of one TSV catalog per Git event, for example
 # kind  target                         args
 cli     sanitise-shell                 --staged
 rule    filenames-formatted.bash
-rule    shellcheck-clean.bash
+cli     check-shell                    --staged
+cli     check-python                   --staged
 attribute repolicy-sanitise
 ```
 
@@ -104,26 +108,61 @@ and other special characters are rejected.
 
 ### Step exit contract
 
-Every catalog step uses a three-state exit contract:
+Every catalog step uses a four-state exit contract:
 
 | Status | Meaning | Catalog behaviour |
 | --- | --- | --- |
 | `0` | Successful, no mutation | Continue |
 | `3` | Files were changed | Continue all remaining steps, then reject the Git operation |
-| Any other non-zero status | Validation or execution failed | Stop immediately with that status |
+| `4` | Checker reported findings | Continue all remaining steps, then reject the Git operation |
+| Any other non-zero status | Fatal validation or execution failure | Stop immediately with that status |
 
-The dedicated status `3` avoids confusing a formatter's expected mutation
-with the ordinary failure status `1`. Repolicy reports all formatting changes
-before asking for review and restaging.
+The dedicated statuses distinguish expected checker findings and formatter
+mutations from broken policy execution. Repolicy runs all checks after either
+status, then reports every applicable summary. Findings (`4`) take precedence
+over changes (`3`) when both occur; fatal failures still stop immediately.
 
-## GitHub Actions
+## GitHub Actions and GitLab CI
 
-Reusable workflows under `.github/workflows/` prepare pull-request or repository
-inputs and invoke the same files under `src/rules/`. Additional workflows cover
-policies that are naturally CI-native:
+The default CI policy is declared once in `config/ci.tsv`. Its columns are a
+repository scope (`branch`, `commits`, `tracked`, `changed`, or `repository`),
+a rule, and optional tab-separated arguments. `src/adapters/ci/run-policy`
+obtains normalized branch and revision information from the current forge and
+supplies the selected repository data to the shared rule.
 
-- `links-work.yaml` checks links but does not create issues or other external
-  state.
+GitHub repositories call `.github/workflows/repolicy.yaml` as a reusable
+workflow. GitLab repositories include the component in
+`templates/repolicy.yml`. These files deliberately contain only forge-specific
+checkout, trigger, and variable translation. Consumers can supply a catalog
+path of their own when the default policy is inappropriate.
+
+A GitHub caller needs only:
+
+```yaml
+jobs:
+  repolicy:
+    uses: kvn-dtrx/repolicy/.github/workflows/repolicy.yaml@v1
+```
+
+The corresponding GitLab entry point is:
+
+```yaml
+include:
+  - component: gitlab.com/kvn-dtrx/repolicy/repolicy@1.0.0
+```
+
+Pin both integrations to a release tag or commit and mirror that ref between
+the forges. Forks can select their own Repolicy repository/project through the
+respective input without changing the common policy runner. On GitHub the
+runtime automatically follows the repository and exact commit containing the
+called workflow; an explicit repository or revision is only an override.
+
+The existing focused reusable workflows remain as compatibility entry points.
+Additional workflows cover policies that need CI-specific setup:
+
+- `links-verified.yaml` checks links in documentation, configuration, and
+  source files with the same Lychee engine as the local `check-links` CLI, but
+  does not create issues or other external state.
 - `command-succeeds.yaml` runs a caller-supplied command; environment setup and
   operating-system matrices remain the caller repository's responsibility.
 

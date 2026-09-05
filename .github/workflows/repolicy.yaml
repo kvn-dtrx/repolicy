@@ -1,0 +1,55 @@
+name: Does Repository Policy Hold
+on:
+  workflow_call:
+    inputs:
+      repolicy_repository:
+        description: Optional Repolicy repository override
+        required: false
+        type: string
+      repolicy_ref:
+        description: Optional Repolicy revision override
+        required: false
+        type: string
+      catalog:
+        description: Optional catalog path in the caller repository
+        required: false
+        type: string
+      base_sha:
+        description: Optional comparison base supplied by the caller
+        required: false
+        type: string
+      head_sha:
+        description: Optional comparison head supplied by the caller
+        required: false
+        type: string
+permissions:
+  contents: read
+jobs:
+  repolicy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Checkout Repolicy
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repolicy_repository || job.workflow_repository }}
+          ref: ${{ inputs.repolicy_ref || job.workflow_sha }}
+          path: .repolicy
+      - name: Run Repository Policy
+        env:
+          REPOLICY_CI_PROVIDER: github
+          REPOLICY_EVENT: ${{ github.event_name }}
+          REPOLICY_BRANCH: ${{ github.head_ref || github.ref_name }}
+          REPOLICY_BASE_SHA: ${{ inputs.base_sha || github.event.pull_request.base.sha || github.event.before }}
+          REPOLICY_HEAD_SHA: ${{ inputs.head_sha || github.event.pull_request.head.sha || github.sha }}
+          REPOLICY_CATALOG: ${{ inputs.catalog }}
+        shell: bash
+        run: |
+          if [ -n "${REPOLICY_CATALOG}" ]; then
+            .repolicy/src/adapters/ci/run-policy "${REPOLICY_CATALOG}"
+          else
+            .repolicy/src/adapters/ci/run-policy
+          fi

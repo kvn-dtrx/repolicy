@@ -1,0 +1,36 @@
+spec:
+  component: [reference]
+  inputs:
+    stage:
+      description: Pipeline stage for the Repolicy job
+      default: test
+    catalog:
+      description: Optional catalog path in the consuming repository
+      default: ""
+    repolicy_project:
+      description: GitLab project containing the Repolicy runtime
+      default: kvn-dtrx/repolicy
+---
+repolicy:
+  stage: $[[ inputs.stage ]]
+  image: alpine:3.22
+  variables:
+    GIT_DEPTH: "0"
+    REPOLICY_CATALOG: $[[ inputs.catalog ]]
+    REPOLICY_CI_PROVIDER: gitlab
+  before_script:
+    - apk add --no-cache bash ca-certificates git jq
+    - git init .repolicy
+    - git -C .repolicy remote add origin "${CI_SERVER_URL}/$[[ inputs.repolicy_project ]].git"
+    - git -C .repolicy fetch --depth 1 origin "$[[ component.reference ]]"
+    - git -C .repolicy checkout --detach FETCH_HEAD
+  script:
+    - |
+      if [ -n "${REPOLICY_CATALOG}" ]; then
+        .repolicy/src/adapters/ci/run-policy "${REPOLICY_CATALOG}"
+      else
+        .repolicy/src/adapters/ci/run-policy
+      fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH

@@ -1,0 +1,133 @@
+#!/bin/bash
+
+# Runs a forge-neutral CI policy catalog against the current repository.
+
+# TSV columns: scope<TAB>rule[<TAB>arg…]
+# Scopes: branch, commits, tracked, changed, repository.
+
+set -o errexit
+set -o pipefail
+
+repo_root="$(CDPATH='' cd -- "$(dirname "${0}")/../../.." && pwd)"
+catalog="${1:-${repo_root}/config/ci.tsv}"
+PATH="${repo_root}/src/wire/libexec:${PATH}"
+export PATH
+
+case "${REPOLICY_CI_PROVIDER:-}" in
+    github) context="${repo_root}/src/adapters/ci/github-context" ;;
+    gitlab) context="${repo_root}/src/adapters/ci/gitlab-context" ;;
+    '')
+        if [ -n "${GITHUB_ACTIONS:-}" ]; then
+            context="${repo_root}/src/adapters/ci/github-context"
+        elif [ -n "${GITLAB_CI:-}" ]; then
+            context="${repo_root}/src/adapters/ci/gitlab-context"
+        else
+            log-error "Cannot detect CI provider; set REPOLICY_CI_PROVIDER"
+            exit 1
+        fi
+        ;;
+    *)
+        log-error "Unsupported CI provider: ${REPOLICY_CI_PROVIDER}"
+        exit 1
+        ;;
+esac
+
+if [ ! -f "${catalog}" ]; then
+    log-error "Missing Repolicy CI catalog: ${catalog}"
+    exit 1
+fi
+
+branch="$(${context} branch)"
+base_sha="$(${context} base-sha)"
+head_sha="$(${context} head-sha)"
+run_rule="${repo_root}/src/adapters/ci/run-rule"
+failed=0
+
+usable_base() {
+    [ -n "${base_sha}" ] || return 1
+    case "${base_sha}" in
+        0000000000000000000000000000000000000000) return 1 ;;
+    esac
+    git cat-file -e "${base_sha}^{commit}" 2>/dev/null
+}
+
+run_catalog_rule() {
+    local scope="$1"
+    local rule="$2"
+    shift 2
+    local args=("${@}")
+    local values=()
+
+    case "${scope}" in
+        branch)
+            if [ -z "${branch}" ]; then
+                log-warn "Skipping ${rule}: CI did not provide a branch"
+                return 0
+            fi
+            values=("${branch}")
+            ;;
+        commits)
+            if ! usable_base; then
+                log-warn "Skipping ${rule}: CI did not provide a usable base commit"
+                return 0
+            fi
+            while IFS= read -r -d '' value; do
+                values+=("${value}")
+            done < <(git log --format='%s%x00' "${base_sha}..${head_sha}")
+            ;;
+        tracked)
+            while IFS= read -r -d '' value; do
+                values+=("${value}")
+            done < <(git ls-files -z)
+            ;;
+        changed)
+            if usable_base; then
+                while IFS= read -r -d '' value; do
+                    values+=("${value}")
+                done < <(git diff --name-only -z --diff-filter=ACM \
+                    "${base_sha}" "${head_sha}")
+            else
+                log-warn "No usable base commit; checking all tracked paths for ${rule}"
+                while IFS= read -r -d '' value; do
+                    values+=("${value}")
+                done < <(git ls-files -z)
+            fi
+            ;;
+        repository) ;;
+        *)
+            log-error "Unknown CI policy scope: ${scope}"
+            return 1
+            ;;
+    esac
+
+    "${run_rule}" "${rule}" "${args[@]}" "${values[@]}"
+}
+
+line_no=0
+while IFS= read -r line || [ -n "${line}" ]; do
+    line_no=$((line_no + 1))
+    case "${line}" in
+        '' | \#*) continue ;;
+    esac
+
+    scope=""
+    rule=""
+    rest=""
+    IFS=$'\t' read -r scope rule rest <<< "${line}" || true
+    if [ -z "${scope}" ] || [ -z "${rule}" ]; then
+        log-error "Bad CI catalog row ${line_no} in ${catalog}: need scope and rule"
+        exit 1
+    fi
+
+    row_args=()
+    if [ -n "${rest}" ]; then
+        IFS=$'\t' read -r -a row_args <<< "${rest}" || true
+    fi
+
+    if ! run_catalog_rule "${scope}" "${rule}" "${row_args[@]}"; then
+        failed=1
+        log-error "CI policy failed at ${catalog}:${line_no}: ${rule}"
+    fi
+done < "${catalog}"
+
+[ "${failed}" -eq 0 ]

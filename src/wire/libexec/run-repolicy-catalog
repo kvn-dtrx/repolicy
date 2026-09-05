@@ -6,7 +6,8 @@
 
 # TSV columns: kind<TAB>target[<TAB>arg…]
 # Kinds: cli (command on PATH), rule/action (adapter), attribute (path policy).
-# Exit contract: 0 = clean, 3 = changed (continue, reject at end), other = fatal.
+# Exit contract: 0 = clean, 3 = changed, 4 = findings, other = fatal.
+# Findings and changes continue through the catalog and reject at the end.
 
 set -o errexit
 set -o pipefail
@@ -15,7 +16,9 @@ event="${1:?usage: run-repolicy-catalog <event> <file.tsv> [event-args…]}"
 catalog="${2:?usage: run-repolicy-catalog <event> <file.tsv> [event-args…]}"
 shift 2
 event_args=("${@}")
+findings_exit=4
 changed_exit=3
+catalog_findings=0
 catalog_changed=0
 
 runtime_root="${REPOLICY_LIBEXEC:-}"
@@ -89,6 +92,10 @@ while IFS= read -r line || [ -n "${line}" ]; do
 
     case "${step_status}" in
         0) ;;
+        "${findings_exit}")
+            catalog_findings=1
+            log-info "${target} reported findings; continuing policy checks."
+            ;;
         "${changed_exit}")
             catalog_changed=1
             log-info "${target} modified files; continuing policy checks."
@@ -108,5 +115,11 @@ if [ "${catalog_changed}" -ne 0 ]; then
         "Review the diff, run:" \
         "  git add -u" \
         "Then commit again."
-    exit "${changed_exit}"
 fi
+
+if [ "${catalog_findings}" -ne 0 ]; then
+    log-error "Policy checks reported findings; Git operation stopped after all checks."
+    exit "${findings_exit}"
+fi
+
+[ "${catalog_changed}" -eq 0 ] || exit "${changed_exit}"

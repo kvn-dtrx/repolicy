@@ -47,12 +47,36 @@ run_catalog 3 "${tmp}/changed.tsv"
 [ "$(paste -sd, "${TRACE}")" = 'changed,after-change' ]
 grep -q 'commit stopped after all checks' "${tmp}/output"
 
+make_command findings 4
+make_command after-findings 0
+printf 'cli\tfindings\ncli\tafter-findings\n' > "${tmp}/findings.tsv"
+: > "${TRACE}"
+run_catalog 4 "${tmp}/findings.tsv"
+[ "$(paste -sd, "${TRACE}")" = 'findings,after-findings' ]
+grep -q 'reported findings; continuing policy checks' "${tmp}/output"
+grep -q 'stopped after all checks' "${tmp}/output"
+
+printf 'cli\tchanged\ncli\tfindings\ncli\tafter-findings\n' > "${tmp}/changed-findings.tsv"
+: > "${TRACE}"
+run_catalog 4 "${tmp}/changed-findings.tsv"
+[ "$(paste -sd, "${TRACE}")" = 'changed,findings,after-findings' ]
+grep -q 'commit stopped after all checks' "${tmp}/output"
+grep -q 'stopped after all checks' "${tmp}/output"
+
 make_command failed 1
 make_command after-failure 0
 printf 'cli\tfailed\ncli\tafter-failure\n' > "${tmp}/failed.tsv"
 : > "${TRACE}"
 run_catalog 1 "${tmp}/failed.tsv"
 [ "$(paste -sd, "${TRACE}")" = 'failed' ]
+grep -q 'Policy step failed' "${tmp}/output"
+
+make_command usage-error 2
+make_command after-usage-error 0
+printf 'cli\tusage-error\ncli\tafter-usage-error\n' > "${tmp}/usage-error.tsv"
+: > "${TRACE}"
+run_catalog 2 "${tmp}/usage-error.tsv"
+[ "$(paste -sd, "${TRACE}")" = 'usage-error' ]
 grep -q 'Policy step failed' "${tmp}/output"
 
 make_command clean 0

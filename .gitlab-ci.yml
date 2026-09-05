@@ -1,0 +1,4 @@
+include:
+  - component: $CI_SERVER_FQDN/$CI_PROJECT_PATH/repolicy@$CI_COMMIT_SHA
+    inputs:
+      repolicy_project: $CI_PROJECT_PATH

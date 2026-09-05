@@ -1,0 +1,20 @@
+name: Are Links Verified
+on:
+  workflow_call:
+    inputs:
+      args:
+        required: false
+        type: string
+        default: >-
+          --verbose "**/*.bash" "**/*.c" "**/*.css" "**/*.h" "**/*.html" "**/*.js" "**/*.json" "**/*.jsonc" "**/*.jsx" "**/*.lua" "**/*.md" "**/*.pl" "**/*.py" "**/*.rs" "**/*.sh" "**/*.sql" "**/*.tex" "**/*.toml" "**/*.ts" "**/*.tsx" "**/*.txt" "**/*.yaml" "**/*.yml" "**/*.zsh"
+jobs:
+  links-verified:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Check Links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: ${{ inputs.args }}
+          fail: true

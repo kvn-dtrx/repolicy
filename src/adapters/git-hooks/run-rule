@@ -29,7 +29,7 @@ staged_paths() {
 }
 
 case "${event}:${rule}" in
-    pre-commit:filenames-formatted.bash | pre-commit:notebooks-cleared.bash | pre-commit:shellcheck-clean.bash)
+    pre-commit:filenames-formatted.bash | pre-commit:notebooks-cleared.bash)
         paths=()
         while IFS= read -r -d '' path; do
             paths+=("${path}")

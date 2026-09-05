@@ -2,7 +2,7 @@
 # title: Makefile for repolicy
 # ---
 
-# Make targets follow paradigmata (install = deploy).
+# Make targets follow paradigmata (install-user = deploy).
 
 # ---
 
@@ -15,12 +15,14 @@ ACTIONS_DEST := $(REPOLICY_DEST)/actions
 ADAPTERS_DEST := $(REPOLICY_DEST)/adapters
 GIT_HOOKS_DEST := $(REPOLICY_DEST)/git-hooks
 
-.PHONY: help _help install test
+.PHONY: help _help install install-user test
 
 help _help: ## Displays available targets with description
 	@bin/make-help.sh
 
-install: ## Symlink Repolicy runtime, rules, actions, and adapters
+install: install-user ## Alias for install-user
+
+install-user: ## Symlink Repolicy runtime, rules, actions, and adapters
 	@if [ ! -f "$(LOG_LIBEXEC)/log-error" ]; then \
 	    command -v dia > /dev/null 2>&1 || { \
 	        printf 'Missing %s (dia not on PATH to pull scripts/log-*)\n' \
@@ -44,3 +46,4 @@ test: ## Runs the Repolicy runtime tests
 	@bash tests/attributes.bash
 	@bash tests/run-repolicy-catalog.bash
 	@bash tests/filenames-formatted.bash
+	@bash tests/ci-policy.bash

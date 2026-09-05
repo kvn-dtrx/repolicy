@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Presents GitHub Actions variables through Repolicy's neutral CI vocabulary.
+
+set -o errexit
+set -o pipefail
+
+case "${1:?usage: github-context <event|branch|base-sha|head-sha>}" in
+    event)
+        case "${REPOLICY_EVENT:-${GITHUB_EVENT_NAME:-}}" in
+            pull_request | pull_request_target) printf '%s\n' merge-request ;;
+            *) printf '%s\n' "${REPOLICY_EVENT:-${GITHUB_EVENT_NAME:-unknown}}" ;;
+        esac
+        ;;
+    branch)
+        printf '%s\n' "${REPOLICY_BRANCH:-${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-}}}"
+        ;;
+    base-sha)
+        printf '%s\n' "${REPOLICY_BASE_SHA:-}"
+        ;;
+    head-sha)
+        printf '%s\n' "${REPOLICY_HEAD_SHA:-${GITHUB_SHA:-HEAD}}"
+        ;;
+    *)
+        printf 'Unknown GitHub CI context field: %s\n' "${1}" >&2
+        exit 1
+        ;;
+esac

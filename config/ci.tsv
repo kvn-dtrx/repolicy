@@ -1,0 +1,5 @@
+# scope	rule	args
+branch	branch-name-valid.bash
+commits	commit-message-valid.sh
+tracked	filenames-formatted.bash
+changed	notebooks-cleared.bash

@@ -1,19 +1,9 @@
 #!/bin/bash
 
-# Runs a shared Repolicy rule from a checked-out Repolicy tree.
+# Compatibility entry point for existing focused GitHub workflows.
 
 set -o errexit
 set -o pipefail
 
-rule="${1:?usage: run-rule <rule> [args…]}"
-shift
 repo_root="$(CDPATH='' cd -- "$(dirname "${0}")/../../.." && pwd)"
-PATH="${repo_root}/src/wire/libexec:${PATH}"
-export PATH
-
-rule_path="${repo_root}/src/rules/${rule}"
-if [ ! -x "${rule_path}" ]; then
-    log-error "Missing Repolicy rule: ${rule}"
-    exit 1
-fi
-exec "${rule_path}" "${@}"
+exec "${repo_root}/src/adapters/ci/run-rule" "${@}"

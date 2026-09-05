@@ -1,0 +1,7 @@
+name: Does Repository Policy Hold
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  repolicy:
+    uses: kvn-dtrx/repolicy/.github/workflows/repolicy.yaml@main

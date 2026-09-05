@@ -1,0 +1,6 @@
+name: Are Links Verified
+on:
+  workflow_dispatch:
+jobs:
+  links-verified:
+    uses: kvn-dtrx/repolicy/.github/workflows/links-verified.yaml@main
