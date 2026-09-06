@@ -80,7 +80,7 @@ run_catalog 2 "${tmp}/usage-error.tsv"
 grep -q 'Policy step failed' "${tmp}/output"
 
 make_command clean 0
-printf 'cli\tclean\n' > "${tmp}/clean.tsv"
+printf 'sanitiser\tclean\n' > "${tmp}/clean.tsv"
 : > "${TRACE}"
 run_catalog 0 "${tmp}/clean.tsv"
 [ "$(paste -sd, "${TRACE}")" = 'clean' ]

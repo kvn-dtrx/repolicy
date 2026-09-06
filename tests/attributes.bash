@@ -36,6 +36,17 @@ export TRACE="${tmp}/trace"
 
 [ "$(cat "${TRACE}")" = "example.py" ]
 
+printf 'print("untracked")\n' > "${tmp}/repo/untracked.py"
+printf 'example.py\0untracked.py\0' > "${tmp}/all-paths"
+: > "${TRACE}"
+(
+    export REPOLICY_PATHS_FILE="${tmp}/all-paths"
+    cd "${tmp}/repo"
+    "${root}/src/adapters/git-hooks/run-attribute" \
+        pre-commit repolicy-sanitise --
+)
+[ "$(paste -sd, "${TRACE}")" = "example.py,untracked.py" ]
+
 printf '*.rs repolicy-sanitise=rust\n' > "${tmp}/repo/.git/info/attributes"
 (
     cd "${tmp}/repo"

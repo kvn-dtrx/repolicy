@@ -1,0 +1,253 @@
+#!/bin/bash
+
+# ---
+# description: Runs Repolicy manually across one or more repositories.
+# ---
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+usage() {
+    cat <<'EOF'
+Usage:
+  repolicy sanitise [--no-recursive] [DIRECTORY ...]
+
+Run every `sanitiser` row and the `repolicy-sanitise` attribute from the
+configured pre-commit policy. Every Git work tree below DIRECTORY is processed
+recursively. DIRECTORY defaults to the current working directory. With
+--no-recursive, each directory must itself be a Git work tree.
+
+Tracked and untracked, non-ignored files are included. Repolicy neither stages
+nor commits files.
+EOF
+}
+
+script_dir="$(CDPATH='' cd -- "$(dirname -- "${0}")" && pwd)"
+source_root="$(CDPATH='' cd -- "${script_dir}/../../.." && pwd)"
+runtime_root="${source_root}/src/wire/libexec"
+attribute_runner="${source_root}/src/adapters/git-hooks/run-attribute"
+PATH="${runtime_root}:${PATH}"
+export PATH REPOLICY_LIBEXEC="${runtime_root}"
+
+command_name="${1:-}"
+case "${command_name}" in
+    sanitise) shift ;;
+    -h | --help | '')
+        usage
+        exit 0
+        ;;
+    *)
+        printf 'Unknown Repolicy command: %s\n' "${command_name}" >&2
+        usage >&2
+        exit 2
+        ;;
+esac
+
+recursive=1
+search_paths=()
+while [ "${#}" -gt 0 ]; do
+    case "${1}" in
+        -r | --recursive)
+            recursive=1
+            shift
+            ;;
+        --no-recursive)
+            recursive=0
+            shift
+            ;;
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            search_paths+=("${@}")
+            break
+            ;;
+        -*)
+            printf 'Unknown option: %s\n' "${1}" >&2
+            usage >&2
+            exit 2
+            ;;
+        *)
+            search_paths+=("${1}")
+            shift
+            ;;
+    esac
+done
+[ "${#search_paths[@]}" -gt 0 ] || search_paths=(.)
+
+repositories=()
+append_repository() {
+    local repository="${1}"
+    local known
+
+    if [ "${#repositories[@]}" -gt 0 ]; then
+        for known in "${repositories[@]}"; do
+            [ "${known}" != "${repository}" ] || return 0
+        done
+    fi
+    repositories+=("${repository}")
+}
+
+if [ "${recursive}" -eq 0 ]; then
+    for search_path in "${search_paths[@]}"; do
+        repository="$(git -C "${search_path}" rev-parse --show-toplevel 2>/dev/null)" || {
+            printf 'Not a Git work tree: %s\n' "${search_path}" >&2
+            exit 2
+        }
+        append_repository "${repository}"
+    done
+else
+    for search_path in "${search_paths[@]}"; do
+        [ -d "${search_path}" ] || {
+            printf 'Search directory does not exist: %s\n' "${search_path}" >&2
+            exit 2
+        }
+        while IFS= read -r -d '' git_marker; do
+            repository="${git_marker%/.git}"
+            [ "$(git -C "${repository}" rev-parse --is-bare-repository 2>/dev/null || true)" != true ] || continue
+            append_repository "$(git -C "${repository}" rev-parse --show-toplevel)"
+        done < <(
+            find "${search_path}" \
+                \( -type d -o -type f \) \
+                -name .git \
+                -prune \
+                -print0
+        )
+    done
+fi
+
+changed_count=0
+failed_count=0
+processed_count=0
+
+record_status() {
+    local target="${1}"
+    local status="${2}"
+
+    case "${status}" in
+        0) ;;
+        3)
+            changed_count=$((changed_count + 1))
+            log-info "${target} modified files; continuing."
+            ;;
+        *)
+            failed_count=$((failed_count + 1))
+            log-error "${target} failed with exit status ${status}; continuing."
+            ;;
+    esac
+}
+
+run_repository_policy() {
+    local repository="${1}"
+    local policy_root
+    local catalog
+    local paths_file
+    local path
+    local line
+    local kind
+    local target
+    local rest
+    local status
+    local arg
+    local has_input_mode
+    local -a row_args
+    local -a command_args
+
+    policy_root="$(git -C "${repository}" config --path --get repolicy.policyPath 2>/dev/null || true)"
+    policy_root="${policy_root:-${HOME}/.config/repolicy}"
+    catalog="${policy_root}/pre-commit.tsv"
+    if [ ! -f "${catalog}" ]; then
+        log-warn "Skipping ${repository}: no pre-commit policy at ${catalog}"
+        return 0
+    fi
+
+    paths_file="$(mktemp)"
+    while IFS= read -r -d '' path; do
+        [ -f "${repository}/${path}" ] || continue
+        printf '%s\0' "${path}" >> "${paths_file}"
+    done < <(
+        git -C "${repository}" ls-files \
+            -z \
+            --cached \
+            --others \
+            --exclude-standard \
+            --deduplicate
+    )
+
+    processed_count=$((processed_count + 1))
+    log-info "Repository: ${repository}"
+
+    while IFS= read -r line || [ -n "${line}" ]; do
+        case "${line}" in
+            '' | \#*) continue ;;
+        esac
+
+        kind=""
+        target=""
+        rest=""
+        IFS=$'\t' read -r kind target rest <<< "${line}" || true
+        case "${kind}:${target}" in
+            sanitiser:*)
+                if ! command -v "${target}" >/dev/null 2>&1; then
+                    log-warn "Skipping missing command: ${target}"
+                    continue
+                fi
+
+                row_args=()
+                command_args=()
+                has_input_mode=0
+                if [ -n "${rest}" ]; then
+                    IFS=$'\t' read -r -a row_args <<< "${rest}" || true
+                fi
+                if [ "${#row_args[@]}" -gt 0 ]; then
+                    for arg in "${row_args[@]}"; do
+                        case "${arg}" in
+                            --staged | --stdin | --stdin0)
+                                if [ "${has_input_mode}" -eq 0 ]; then
+                                    command_args+=(--stdin0)
+                                fi
+                                has_input_mode=1
+                                ;;
+                            *) command_args+=("${arg}") ;;
+                        esac
+                    done
+                fi
+                if [ "${has_input_mode}" -eq 0 ]; then
+                    command_args+=(--stdin0)
+                fi
+
+                status=0
+                (
+                    cd "${repository}"
+                    "${target}" "${command_args[@]}" < "${paths_file}"
+                ) || status=$?
+                record_status "${target} (${repository})" "${status}"
+                ;;
+            attribute:repolicy-sanitise)
+                status=0
+                (
+                    cd "${repository}"
+                    REPOLICY_PATHS_FILE="${paths_file}" \
+                        "${attribute_runner}" pre-commit repolicy-sanitise --
+                ) || status=$?
+                record_status "repolicy-sanitise (${repository})" "${status}"
+                ;;
+        esac
+    done < "${catalog}"
+
+    rm -f "${paths_file}"
+}
+
+for repository in "${repositories[@]}"; do
+    run_repository_policy "${repository}"
+done
+
+if [ "${processed_count}" -eq 0 ]; then
+    log-warn "No Git work trees found."
+fi
+log-info "Processed repositories: ${processed_count}; mutating steps: ${changed_count}; failures: ${failed_count}."
+
+[ "${failed_count}" -eq 0 ] || exit 1

@@ -5,7 +5,8 @@
 # ---
 
 # TSV columns: kind<TAB>target[<TAB>arg…]
-# Kinds: cli (command on PATH), rule/action (adapter), attribute (path policy).
+# Kinds: cli/sanitiser (command on PATH), rule/action (adapter), attribute
+# (path policy). The distinct sanitiser kind permits deliberate manual runs.
 # Exit contract: 0 = clean, 3 = changed, 4 = findings, other = fatal.
 # Findings and changes continue through the catalog and reject at the end.
 
@@ -78,7 +79,7 @@ while IFS= read -r line || [ -n "${line}" ]; do
 
     step_status=0
     case "${kind}" in
-        cli)
+        cli | sanitiser)
             run_cli "${target}" "${row_args[@]}" || step_status=$?
             ;;
         rule | action | attribute)

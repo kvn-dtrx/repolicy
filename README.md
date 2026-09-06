@@ -21,6 +21,7 @@ repolicy/
 ├── src/
 │   ├── rules/                       # context-independent validations
 │   ├── actions/                     # explicit mutations, kept separate
+│   ├── wire/bin/                    # manual `repolicy` command
 │   ├── adapters/
 │   │   ├── git-hooks/
 │   │   │   ├── entry/               # core.hooksPath entry points
@@ -55,8 +56,9 @@ Run:
 make install
 ```
 
-This installs the runtime below `~/.local/libexec/repolicy/`, including `rules/`,
-`actions/`, `adapters/`, and `git-hooks/`. `MY_LOCAL_HOME` overrides `~/.local`.
+This installs the `repolicy` command below `~/.local/bin/` and the runtime below
+`~/.local/libexec/repolicy/`, including `rules/`, `actions/`, `adapters/`, and
+`git-hooks/`. `MY_LOCAL_HOME` overrides `~/.local`.
 
 Configure Git, typically through Dotfiles:
 
@@ -78,7 +80,7 @@ Policy consists of one TSV catalog per Git event, for example
 
 ```text
 # kind  target                         args
-cli     sanitise-shell                 --staged
+sanitiser sanitise-shell               --staged
 rule    filenames-formatted.bash
 cli     check-shell                    --staged
 cli     check-python                   --staged
@@ -90,6 +92,7 @@ Supported row kinds:
 | Kind | Meaning |
 | --- | --- |
 | `cli` | Run an external command with the configured arguments. Missing commands are skipped with a warning. |
+| `sanitiser` | Run a mutating CLI; as `cli`, but also eligible for deliberate manual sanitation. |
 | `rule` | Run a shared Repolicy rule through the Git adapter. |
 | `action` | Run an explicitly mutating Repolicy action through the Git adapter. |
 | `attribute` | Dispatch staged paths according to a local Git attribute. |
@@ -121,6 +124,27 @@ The dedicated statuses distinguish expected checker findings and formatter
 mutations from broken policy execution. Repolicy runs all checks after either
 status, then reports every applicable summary. Findings (`4`) take precedence
 over changes (`3`) when both occur; fatal failures still stop immediately.
+
+## Manual sanitation
+
+The mutating portion of the pre-commit policy may be run without staging or
+committing anything:
+
+```sh
+repolicy sanitise
+repolicy sanitise ~/data/projects
+repolicy sanitise --no-recursive ~/data/projects/example
+```
+
+By default the command starts at the current working directory, or at the
+directories supplied as arguments, and recursively discovers every Git work
+tree below them, including linked worktrees. `--no-recursive` restricts each
+argument to the work tree containing it. The command continues after a failure
+so that all repositories are visited. It applies the catalog's `sanitiser` rows
+and its `repolicy-sanitise` attribute to every tracked and untracked,
+non-ignored regular file. Nested repositories are treated independently. A
+successful run exits with zero even when files were modified; actual execution
+failures produce a non-zero status.
 
 ## GitHub Actions and GitLab CI
 

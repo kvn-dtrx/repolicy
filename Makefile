@@ -22,7 +22,7 @@ help _help: ## Displays available targets with description
 
 install: install-user ## Alias for install-user
 
-install-user: ## Symlink Repolicy runtime, rules, actions, and adapters
+install-user: ## Installs the Repolicy command, runtime, rules, actions, and adapters
 	@if [ ! -f "$(LOG_LIBEXEC)/log-error" ]; then \
 	    command -v dia > /dev/null 2>&1 || { \
 	        printf 'Missing %s (dia not on PATH to pull scripts/log-*)\n' \
@@ -44,6 +44,7 @@ install-user: ## Symlink Repolicy runtime, rules, actions, and adapters
 
 test: ## Runs the Repolicy runtime tests
 	@bash tests/attributes.bash
+	@bash tests/manual-sanitise.bash
 	@bash tests/run-repolicy-catalog.bash
 	@bash tests/filenames-formatted.bash
 	@bash tests/ci-policy.bash
