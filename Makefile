@@ -46,5 +46,6 @@ test: ## Runs the Repolicy runtime tests
 	@bash tests/attributes.bash
 	@bash tests/manual-sanitise.bash
 	@bash tests/run-repolicy-catalog.bash
+	@bash tests/prepare-commit-msg.bash
 	@bash tests/filenames-formatted.bash
 	@bash tests/ci-policy.bash

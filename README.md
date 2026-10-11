@@ -73,6 +73,26 @@ Configure Git, typically through Dotfiles:
 Project-local executable hooks under `.git/hooks/` take precedence when a
 Repolicy entry hook finds one.
 
+### LLM-assisted commit messages
+
+The optional `prepare-commit-msg` policy generates a message only after the
+mutating `pre-commit` policy has completed successfully:
+
+```text
+# ~/.config/repolicy/prepare-commit-msg.tsv
+action  generate-commit-message.sh  git-synth-message
+```
+
+The columns are tab-separated. `git-synth-message` reads the final staged diff
+and writes a proposed Conventional Commit message before Git opens the editor.
+The action preserves explicit `-m`/`-F` messages, merge and squash messages,
+amend/reuse messages, and any editor buffer that already contains substantive
+text. A comment-only commit template may receive a generated proposal.
+
+Consequently, a sanitiser exit status of `3` rejects the commit before the LLM
+is called. After reviewing and staging the sanitised files, invoke
+`git commit` again; only the clean attempt consumes model tokens.
+
 ## Git-hook policy
 
 Policy consists of one TSV catalog per Git event, for example

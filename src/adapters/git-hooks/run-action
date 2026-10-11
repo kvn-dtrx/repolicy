@@ -9,7 +9,9 @@ event="${1:?}"
 action="${2:?}"
 shift 2
 
+row_args=()
 while [ "${#}" -gt 0 ] && [ "${1}" != "--" ]; do
+    row_args+=("${1}")
     shift
 done
 [ "${#}" -eq 0 ] || shift
@@ -24,6 +26,12 @@ fi
 case "${event}:${action}" in
     commit-msg:format-commit-message.sh)
         "${action_path}" "${event_args[0]:?commit-msg needs a message file}"
+        ;;
+    prepare-commit-msg:generate-commit-message.sh)
+        "${action_path}" \
+            "${event_args[0]:?prepare-commit-msg needs a message file}" \
+            "${event_args[1]:-}" \
+            "${row_args[0]:-git-synth-message}"
         ;;
     *)
         log-error "Action '${action}' is not mapped for Git event '${event}'"
